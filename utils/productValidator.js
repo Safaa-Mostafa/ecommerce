@@ -1,7 +1,7 @@
 const { check } = require("express-validator");
 const validatorMiddleware = require("../middleware/validatorMiddleware");
 const categoryModel = require("../models/category.model")
-
+const subCategoryModel = require("../models/subCategory.model")
 exports.createProductValidator = [
   check("title")
     .notEmpty()
@@ -51,12 +51,33 @@ exports.createProductValidator = [
     .notEmpty()
     .withMessage("Product must be belong to a category")
     .isMongoId()
-    .withMessage("Invalid Id format").custom((value)=>categoryModel.findById(value).then((category)=>{
-      if(!category){
-        return Promise.reject(new Error (`No category for this id:${value}`))
+     .withMessage("Invalid Id format").custom((value)=>categoryModel.findById(value).then((category)=>{
+      if(!category) return Promise.reject(new Error(`No catgory for this id:${value}`))
+     })),
+  check("subcategories").optional().isMongoId().withMessage("Invalid Id format").custom((subcategoriesIds)=>subCategoryModel.find({_id:{$exists:true,$in:subcategoriesIds}}).then(
+    (result)=>{
+ if(result.length <1 || result.length !==  subcategoriesIds.length){
+return Promise.reject(new Error(`invalid subcategories ids`))
+ };
+    }
+  ) .custom((val, { req }) =>
+  SubCategory.find({ category: req.body.category }).then(
+    (subcategories) => {
+      const subCategoriesIdsInDB = [];
+      subcategories.forEach((subCategory) => {
+        subCategoriesIdsInDB.push(subCategory._id.toString());
+      });
+      // check if subcategories ids in db include subcategories in req.body (true)
+      const checker = (target, arr) => target.every((v) => arr.includes(v));
+      if (!checker(val, subCategoriesIdsInDB)) {
+        return Promise.reject(
+          new Error(`subcategories not belong to category`)
+        );
       }
-    })),
-  check("subcategory").optional().isMongoId().withMessage("Invalid Id format"),
+    }
+  )
+),
+),
   check("brand").optional().isMongoId().withMessage("Invalid Id format"),
   check("ratingAverage")
     .optional()
